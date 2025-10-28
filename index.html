@@ -28,7 +28,7 @@
       background: linear-gradient(135deg, var(--accent), var(--accent-2));
       color: white; padding: 24px 16px;
     }
-    header .inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    header .inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
     header h1 { margin: 0; font-size: 22px; }
     header .firm {
       display: flex; gap: 8px; align-items: center;
@@ -39,9 +39,8 @@
     }
     .container { max-width: 1200px; margin: 20px auto; padding: 0 16px 48px; display: grid; grid-template-columns: 1fr; gap: 20px; }
     @media (min-width: 1080px) {
-      .container { grid-template-columns: 1.1fr 1.2fr; }
-      /* Make Today's Intakes span full width between New Intake and End-of-Day Summary */
-      #intakesSection { grid-column: 1 / -1; }
+      /* Keep a single column at larger widths to make all boxes full-width */
+      .container { grid-template-columns: 1fr; }
     }
     section {
       background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px;
@@ -133,9 +132,7 @@
         <span>Firm:</span>
         <input id="firmName" type="text" placeholder="Firm Name" />
         <span class="sr-only">Timezone</span>
-        <select id="timezoneSelect" title="Reporting Timezone">
-          <!-- Populated by JS -->
-        </select>
+        <select id="timezoneSelect" title="Reporting Timezone"></select>
       </div>
       <div class="firm">
         <span>Reply-To:</span>
@@ -268,7 +265,7 @@
       </form>
     </section>
 
-    <!-- Today's Intakes (now full-width and between sections) -->
+    <!-- Today's Intakes -->
     <section id="intakesSection" aria-labelledby="intakesTitle">
       <div class="flex">
         <h2 id="intakesTitle">Today's Intakes</h2>
@@ -422,7 +419,7 @@
       const yyyy = local.getFullYear();
       const mm = String(local.getMonth()+1).padStart(2,'0');
       const dd = String(local.getDate()).padStart(2,'0');
-      return `$${yyyy}-$${mm}-${dd}`;
+      return `${yyyy}-${mm}-${dd}`;
     };
     const fmtDate = (iso) => {
       if (!iso) return '';
@@ -461,7 +458,7 @@
     function populateTimezones() {
       const tzs = Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : [state.config.timezone];
       const sel = $('#timezoneSelect');
-      sel.innerHTML = tzs.map(z => `<option value="$${z}">$${z}</option>`).join('');
+      sel.innerHTML = tzs.map(z => `<option value="${z}">${z}</option>`).join('');
       sel.value = state.config.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
     }
 
@@ -496,15 +493,15 @@
       });
       $('#intakeForm').addEventListener('submit', onSubmitIntake);
       $('#resetFormBtn').addEventListener('click', () => {
-        state.editingId = null; $$('#intakeForm').reset(); $$('#intakeDate').value = todayStr();
+        state.editingId = null; $('#intakeForm').reset(); $('#intakeDate').value = todayStr();
       });
       $('#filterDate').value = todayStr();
       state.filterDate = $('#filterDate').value;
       $('#filterDate').addEventListener('change', e => { state.filterDate = e.target.value; draw(); });
-      $$('#clearFilterBtn').addEventListener('click', () => { state.filterDate = todayStr(); $$('#filterDate').value = state.filterDate; draw(); });
+      $('#clearFilterBtn').addEventListener('click', () => { state.filterDate = todayStr(); $('#filterDate').value = state.filterDate; draw(); });
 
       $('#exportJsonBtn').addEventListener('click', exportJson);
-      $$('#importJsonBtn').addEventListener('click', () => $$('#importFile').click());
+      $('#importJsonBtn').addEventListener('click', () => $('#importFile').click());
       $('#importFile').addEventListener('change', importJson);
       $('#downloadCsvBtn').addEventListener('click', downloadCsv);
       $('#purgeBtn').addEventListener('click', purgeAll);
@@ -521,4 +518,593 @@
       renderVercelCode();
       renderNetlifyCode();
       draw();
-   
+    }
+
+    function persist() {
+      store.set('intakeEntries', state.entries);
+      store.set('intakeRecipients', state.recipients);
+      store.set('intakeConfig', state.config);
+    }
+
+    function onSubmitIntake(e) {
+      e.preventDefault();
+      const get = id => $(id.startsWith('#') ? id : `#${id}`).value.trim();
+      const entry = {
+        id: state.editingId || cryptoRandom(),
+        date: $('#intakeDate').value,
+        clientName: get('clientName'),
+        clientEmail: get('clientEmail'),
+        clientPhone: get('clientPhone'),
+        practiceArea: get('practiceArea'),
+        matterType: get('matterType'),
+        referralSource: get('referralSource'),
+        assignedAttorney: get('assignedAttorney'),
+        status: $('#status').value,
+        urgency: $('#urgency').value,
+        conflictCheck: $('#conflictCheck').value,
+        feeType: $('#feeType').value,
+        potentialValue: parseFloat($('#potentialValue').value || '0'),
+        followUpDate: $('#followUpDate').value,
+        intakeOwner: get('intakeOwner'),
+        notes: $('#notes').value.trim()
+      };
+      if (!entry.clientName) { alert('Client name is required'); return; }
+      if (!entry.date) { alert('Date is required'); return; }
+      if (state.editingId) {
+        const idx = state.entries.findIndex(x => x.id === state.editingId);
+        if (idx >= 0) state.entries[idx] = entry;
+        state.editingId = null;
+      } else {
+        state.entries.push(entry);
+      }
+      persist();
+      $('#intakeForm').reset();
+      $('#intakeDate').value = todayStr();
+      draw();
+    }
+
+    function editEntry(id) {
+      const e = state.entries.find(x => x.id === id);
+      if (!e) return;
+      state.editingId = id;
+      $('#intakeDate').value = e.date || todayStr();
+      $('#clientName').value = e.clientName || '';
+      $('#clientEmail').value = e.clientEmail || '';
+      $('#clientPhone').value = e.clientPhone || '';
+      $('#practiceArea').value = e.practiceArea || '';
+      $('#matterType').value = e.matterType || '';
+      $('#referralSource').value = e.referralSource || '';
+      $('#assignedAttorney').value = e.assignedAttorney || '';
+      $('#status').value = e.status || 'New';
+      $('#urgency').value = e.urgency || 'Low';
+      $('#conflictCheck').value = e.conflictCheck || 'Not Run';
+      $('#feeType').value = e.feeType || 'Unknown';
+      $('#potentialValue').value = e.potentialValue || '';
+      $('#followUpDate').value = e.followUpDate || '';
+      $('#intakeOwner').value = e.intakeOwner || '';
+      $('#notes').value = e.notes || '';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function deleteEntry(id) {
+      if (!confirm('Delete this intake entry?')) return;
+      state.entries = state.entries.filter(x => x.id !== id);
+      persist();
+      draw();
+    }
+
+    function draw() {
+      const filtered = state.entries.filter(e => !state.filterDate || e.date === state.filterDate);
+      // Table
+      const tbody = $('#intakesTbody'); tbody.innerHTML = '';
+      filtered.sort((a,b) => (a.urgency === 'High' ? -1 : 1)).forEach(e => {
+        const tr = document.createElement('tr');
+        const email = e.clientEmail ? `<div><a href="mailto:${escapeHtml(e.clientEmail)}">${escapeHtml(e.clientEmail)}</a></div>` : '';
+        const phone = e.clientPhone ? `<div>${escapeHtml(e.clientPhone)}</div>` : '';
+        tr.innerHTML = `
+          <td>${fmtDate(e.date)}</td>
+          <td><strong>${escapeHtml(e.clientName || '')}</strong></td>
+          <td>${email}${phone}</td>
+          <td><div><strong>${escapeHtml(e.practiceArea || '')}</strong></div><div class="soft">${escapeHtml(e.matterType || '')}</div></td>
+          <td>${escapeHtml(e.assignedAttorney || '')}</td>
+          <td>${statusPill(e.status)}</td>
+          <td>${urgencyPill(e.urgency)}</td>
+          <td><span class="pill">${escapeHtml(e.conflictCheck || '')}</span></td>
+          <td class="right">${e.potentialValue ? ('$' + e.potentialValue.toLocaleString()) : ''}</td>
+          <td>${e.followUpDate ? fmtDate(e.followUpDate) : ''}</td>
+          <td>${escapeHtml(e.intakeOwner || '')}</td>
+          <td>${escapeHtml(e.notes || '')}</td>
+          <td>
+            <div class="flex">
+              <button class="secondary sm" onclick="editEntry('${e.id}')">Edit</button>
+              <button class="danger sm" onclick="deleteEntry('${e.id}')">Delete</button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      renderTotals(filtered);
+      refreshSubject();
+      renderSummaryPreviews(filtered);
+    }
+
+    function renderTotals(entries) {
+      const totals = {
+        count: entries.length,
+        retained: entries.filter(e => e.status === 'Retained').length,
+        declined: entries.filter(e => e.status === 'Declined').length,
+        conflict: entries.filter(e => e.status === 'Conflict' || e.conflictCheck === 'Conflict').length,
+        consults: entries.filter(e => e.status === 'Consult Scheduled').length,
+        potential: entries.reduce((sum, e) => sum + (e.potentialValue || 0), 0),
+      };
+      const byPractice = groupCount(entries, e => e.practiceArea || 'Unspecified');
+      const bySource = groupCount(entries, e => e.referralSource || 'Unspecified');
+
+      const bar = $('#totalsBar'); bar.innerHTML = '';
+      const makeCard = (label, value) => {
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.innerHTML = `<strong>${value}</strong> ${label}`;
+        return div;
+      };
+      bar.appendChild(makeCard('Total', totals.count));
+      bar.appendChild(makeCard('Retained', totals.retained));
+      bar.appendChild(makeCard('Consults', totals.consults));
+      bar.appendChild(makeCard('Declined', totals.declined));
+      bar.appendChild(makeCard('Conflicts', totals.conflict));
+      bar.appendChild(makeCard('Potential $', '$' + totals.potential.toLocaleString()));
+      const topPractice = Object.entries(byPractice).sort((a,b)=>b[1]-a[1])[0];
+      const topSource = Object.entries(bySource).sort((a,b)=>b[1]-a[1])[0];
+      if (topPractice) bar.appendChild(makeCard('Top Practice', `${topPractice[0]} (${topPractice[1]})`));
+      if (topSource) bar.appendChild(makeCard('Top Source', `${topSource[0]} (${topSource[1]})`));
+    }
+
+    function groupCount(items, keyFn) {
+      const map = {};
+      items.forEach(it => { const k = keyFn(it); map[k] = (map[k]||0)+1; });
+      return map;
+    }
+
+    function statusPill(status='New') {
+      const map = {
+        'New': 'status-new',
+        'In Review': 'status-review',
+        'Consult Scheduled': 'status-review',
+        'Retained': 'status-retained',
+        'Declined': 'status-declined',
+        'Conflict': 'status-conflict'
+      };
+      const cls = map[status] || 'status-new';
+      return `<span class="pill ${cls}">${escapeHtml(status)}</span>`;
+    }
+    function urgencyPill(u='Low') {
+      const map = { 'High':'urgency-high', 'Medium':'urgency-medium', 'Low':'urgency-low' };
+      return `<span class="pill ${map[u] || 'urgency-low'}">${escapeHtml(u)}</span>`;
+    }
+    function escapeHtml(s='') {
+      return String(s)
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'","&#39;");
+    }
+
+    // Export/Import
+    function exportJson() {
+      const data = { entries: state.entries, recipients: state.recipients, config: state.config };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `intake-export-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+    function importJson(e) {
+      const file = e.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = JSON.parse(reader.result);
+          if (data.entries) state.entries = data.entries;
+          if (data.recipients) state.recipients = data.recipients;
+          if (data.config) state.config = { ...state.config, ...data.config };
+          persist(); initForm();
+          alert('Import successful.');
+        } catch(err) { alert('Invalid JSON file.'); }
+      };
+      reader.readAsText(file);
+    }
+    function downloadCsv() {
+      const cols = ['date','clientName','clientEmail','clientPhone','practiceArea','matterType','referralSource','assignedAttorney','status','urgency','conflictCheck','feeType','potentialValue','followUpDate','intakeOwner','notes'];
+      const header = cols.map(csvEscape).join(',') + '\n';
+      const rows = state.entries.map(e => cols.map(k => csvEscape(e[k] ?? '')).join(',')).join('\n');
+      const blob = new Blob([header + rows], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `intakes-${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+    function purgeAll() {
+      if (!confirm('This will delete ALL entries stored locally on this browser. Continue?')) return;
+      state.entries = [];
+      persist(); draw();
+    }
+
+    // Recipients
+    function renderRecipients() {
+      const container = $('#recipientsList'); container.innerHTML = '';
+      state.recipients.forEach(r => {
+        const div = document.createElement('div');
+        div.className = 'recipient';
+        div.innerHTML = `
+          <input type="checkbox" ${r.enabled ? 'checked':''} id="rec-${r.id}" />
+          <div>
+            <div><strong>${escapeHtml(r.name)}</strong> <span class="badge">${escapeHtml(r.role || '')}</span></div>
+            <div class="soft">${escapeHtml(r.email)}</div>
+          </div>
+        `;
+        container.appendChild(div);
+        $('#rec-'+r.id).addEventListener('change', ev => {
+          r.enabled = ev.target.checked; persist();
+        });
+      });
+    }
+
+    function renderRecipientEditor() {
+      const list = $('#recipientEditorList'); list.innerHTML = '';
+      state.recipients.forEach(r => {
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = `
+          <div class="recipient">
+            <div class="w-100 grid">
+              <div class="row cols-2">
+                <div>
+                  <label>Name</label>
+                  <input type="text" value="${escapeAttr(r.name)}" data-k="name" data-id="${r.id}" />
+                </div>
+                <div>
+                  <label>Role</label>
+                  <input type="text" value="${escapeAttr(r.role || '')}" data-k="role" data-id="${r.id}" />
+                </div>
+              </div>
+              <div class="row cols-2">
+                <div>
+                  <label>Email</label>
+                  <input type="email" value="${escapeAttr(r.email)}" data-k="email" data-id="${r.id}" />
+                </div>
+                <div class="flex" style="align-items: flex-end;">
+                  <label class="sr-only">Enabled</label>
+                  <input type="checkbox" ${r.enabled ? 'checked':''} data-k="enabled" data-id="${r.id}" />
+                  <span class="spacer"></span>
+                  <button class="danger sm" data-action="remove" data-id="${r.id}">Remove</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        list.appendChild(wrapper);
+      });
+      // Wire inputs
+      $$('input[data-id]').forEach(inp => {
+        inp.addEventListener('input', ev => {
+          const id = ev.target.getAttribute('data-id');
+          const key = ev.target.getAttribute('data-k');
+          const r = state.recipients.find(x => x.id === id);
+          if (!r) return;
+          if (key === 'enabled') r.enabled = ev.target.checked;
+          else r[key] = ev.target.value;
+          persist(); renderRecipients();
+        });
+      });
+      $$('button[data-action="remove"]').forEach(btn => {
+        btn.addEventListener('click', ev => {
+          const id = ev.target.getAttribute('data-id');
+          if (!confirm('Remove this recipient?')) return;
+          state.recipients = state.recipients.filter(x => x.id !== id);
+          persist(); renderRecipients(); renderRecipientEditor();
+        });
+      });
+    }
+
+    function addRecipientPrompt() {
+      const name = prompt('Recipient name:');
+      if (!name) return;
+      const email = prompt('Recipient email:');
+      if (!email) return;
+      const role = prompt('Role (e.g., Partners, Intake):') || '';
+      const r = { id: cryptoRandom(), name, email, role, enabled: true };
+      state.recipients.push(r); persist();
+      renderRecipients(); renderRecipientEditor();
+    }
+
+    function escapeAttr(s='') {
+      return String(s).replaceAll('"','&quot;');
+    }
+
+    // Email Subject and Summary
+    function refreshSubject() {
+      const d = state.filterDate || todayStr();
+      const firm = state.config.firmName ? `${state.config.firmName} — ` : '';
+      $('#emailSubject').value = `${firm}Daily Intake Summary — ${fmtDate(d)}`;
+    }
+
+    function renderSummaryPreviews(entries) {
+      const { html, text } = buildSummary(entries);
+      $('#summaryPreview').innerHTML = html;
+      $('#summaryTextPreview').textContent = text;
+    }
+
+    function buildSummary(entries) {
+      const d = state.filterDate || todayStr();
+      const heading = `Daily Intake Summary — ${fmtDate(d)}`;
+      const totals = {
+        count: entries.length,
+        retained: entries.filter(e => e.status === 'Retained').length,
+        declined: entries.filter(e => e.status === 'Declined').length,
+        conflict: entries.filter(e => e.status === 'Conflict' || e.conflictCheck === 'Conflict').length,
+        consults: entries.filter(e => e.status === 'Consult Scheduled').length,
+        potential: entries.reduce((sum, e) => sum + (e.potentialValue || 0), 0),
+      };
+      const byPractice = groupCount(entries, e => e.practiceArea || 'Unspecified');
+      const bySource = groupCount(entries, e => e.referralSource || 'Unspecified');
+
+      const style = `
+        <style>
+          body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #111827; }
+          .soft { color: #6b7280; }
+          .section { margin: 8px 0 16px; }
+          table { border-collapse: collapse; width: 100%; }
+          th, td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: left; vertical-align: top; }
+          th { background: #f3f4f6; }
+          .right { text-align: right; }
+          .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background:#eef2ff; color:#4338ca; }
+        </style>
+      `;
+
+      const totalsHtml = `
+        <div class="section">
+          <strong>Totals:</strong>
+          <ul>
+            <li>Total: ${totals.count}</li>
+            <li>Retained: ${totals.retained} • Consults: ${totals.consults} • Declined: ${totals.declined} • Conflicts: ${totals.conflict}</li>
+            <li>Potential Value: $${totals.potential.toLocaleString()}</li>
+          </ul>
+        </div>
+      `;
+
+      const aggHtml = (title, obj) => `
+        <div class="section">
+          <strong>${title}:</strong>
+          <ul>${Object.entries(obj).sort((a,b)=>b[1]-a[1]).map(([k,v]) => `<li>${escapeHtml(k)}: ${v}</li>`).join('')}</ul>
+        </div>
+      `;
+
+      const tableHtml = `
+        <div class="section">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Client</th>
+                <th>Contact</th>
+                <th>Practice • Matter</th>
+                <th>Assigned</th>
+                <th>Status</th>
+                <th>Urgency</th>
+                <th>Conflict</th>
+                <th class="right">Value</th>
+                <th>Follow-up</th>
+                <th>Owner</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${entries.map(e => `
+                <tr>
+                  <td>${fmtDate(e.date)}</td>
+                  <td>${escapeHtml(e.clientName)}</td>
+                  <td>${escapeHtml([e.clientEmail, e.clientPhone].filter(Boolean).join(' • '))}</td>
+                  <td>${escapeHtml(e.practiceArea || '')} • <span class="soft">${escapeHtml(e.matterType || '')}</span></td>
+                  <td>${escapeHtml(e.assignedAttorney || '')}</td>
+                  <td>${escapeHtml(e.status)}</td>
+                  <td>${escapeHtml(e.urgency)}</td>
+                  <td>${escapeHtml(e.conflictCheck || '')}</td>
+                  <td class="right">${e.potentialValue ? ('$' + e.potentialValue.toLocaleString()) : ''}</td>
+                  <td>${e.followUpDate ? fmtDate(e.followUpDate) : ''}</td>
+                  <td>${escapeHtml(e.intakeOwner || '')}</td>
+                  <td>${escapeHtml(e.notes || '')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      const html = `
+        ${style}
+        <h2>${escapeHtml(heading)}</h2>
+        <div class="soft">${escapeHtml(state.config.firmName || '')}</div>
+        ${totalsHtml}
+        ${aggHtml('By Practice Area', byPractice)}
+        ${aggHtml('By Referral Source', bySource)}
+        ${tableHtml}
+      `;
+
+      const text = [
+        heading,
+        state.config.firmName || '',
+        '',
+        `Totals:`,
+        `- Total: ${totals.count}`,
+        `- Retained: ${totals.retained} • Consults: ${totals.consults} • Declined: ${totals.declined} • Conflicts: ${totals.conflict}`,
+        `- Potential Value: $${totals.potential.toLocaleString()}`,
+        '',
+        'By Practice Area:',
+        ...Object.entries(byPractice).sort((a,b)=>b[1]-a[1]).map(([k,v]) => `- ${k}: ${v}`),
+        '',
+        'By Referral Source:',
+        ...Object.entries(bySource).sort((a,b)=>b[1]-a[1]).map(([k,v]) => `- ${k}: ${v}`),
+        '',
+        'Entries:',
+        ...entries.map(e => [
+          `• ${fmtDate(e.date)} — ${e.clientName} | ${e.practiceArea} • ${e.matterType || ''}`,
+          `  Contact: ${[e.clientEmail, e.clientPhone].filter(Boolean).join(' • ') || '—'}`,
+          `  Assigned: ${e.assignedAttorney || '—'} | Status: ${e.status} | Urgency: ${e.urgency} | Conflict: ${e.conflictCheck || '—'}`,
+          `  Value: ${e.potentialValue ? ('$' + e.potentialValue.toLocaleString()) : '—'} | Follow-up: ${e.followUpDate ? fmtDate(e.followUpDate) : '—'} | Owner: ${e.intakeOwner || '—'}`,
+          `  Notes: ${e.notes || '—'}`,
+          ''
+        ].join('\n'))
+      ].join('\n');
+
+      return { html, text };
+    }
+
+    async function copyHtml() {
+      const entries = state.entries.filter(e => !state.filterDate || e.date === state.filterDate);
+      const { html } = buildSummary(entries);
+      await navigator.clipboard.writeText(html);
+      alert('HTML copied to clipboard.');
+    }
+    async function copyText() {
+      const entries = state.entries.filter(e => !state.filterDate || e.date === state.filterDate);
+      const { text } = buildSummary(entries);
+      await navigator.clipboard.writeText(text);
+      alert('Plain text copied to clipboard.');
+    }
+
+    async function sendEmail() {
+      const to = state.recipients.filter(r => r.enabled).map(r => r.email).filter(Boolean);
+      if (!to.length) { alert('Please enable at least one recipient.'); return; }
+      const subject = $('#emailSubject').value.trim() || 'Daily Intake Summary';
+      const replyTo = state.config.replyTo || '';
+      const entries = state.entries.filter(e => !state.filterDate || e.date === state.filterDate);
+      const { html, text } = buildSummary(entries);
+      const token = $('#apiToken').value.trim();
+
+      try {
+        const res = await fetch('/api/send-intake-summary', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to, subject, html, text, replyTo, token })
+        });
+        if (!res.ok) {
+          const msg = await res.text();
+          throw new Error(msg || ('HTTP ' + res.status));
+        }
+        alert('Email sent successfully.');
+      } catch (err) {
+        alert('Failed to send email. Ensure the backend function is deployed and accessible.\n\nError: ' + err.message);
+      }
+    }
+
+    // Backend code samples
+    function renderVercelCode() {
+      const code = `import nodemailer from 'nodemailer';
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+  const origin = req.headers.origin || '';
+  const allowOrigin = process.env.ALLOW_ORIGIN || '';
+  if (allowOrigin && origin && origin !== allowOrigin) {
+    return res.status(403).send('Forbidden origin');
+  }
+  const { to, subject, html, text, replyTo, token } = req.body || {};
+  if (!Array.isArray(to) || !to.length) return res.status(400).send('Missing recipients');
+  if (!subject || !html) return res.status(400).send('Missing subject or html');
+
+  const requiredToken = process.env.SEND_TOKEN;
+  if (requiredToken && token !== requiredToken) return res.status(401).send('Unauthorized');
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587', 10),
+      secure: (process.env.SMTP_SECURE || 'false') === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+
+    const info = await transporter.sendMail({
+      from: process.env.FROM_EMAIL,
+      to: to.join(','),
+      subject,
+      html,
+      text: text || undefined,
+      replyTo: replyTo || undefined
+    });
+
+    return res.status(200).json({ ok: true, messageId: info.messageId });
+  } catch (err) {
+    console.error('Mailer error:', err);
+    return res.status(500).send('Failed to send email');
+  }
+}
+`;
+      $('#vercelCode').textContent = code;
+    }
+
+    function renderNetlifyCode() {
+      const code = `const nodemailer = require('nodemailer');
+
+exports.handler = async function(event, context) {
+  if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
+
+  const origin = event.headers.origin || '';
+  const allowOrigin = process.env.ALLOW_ORIGIN || '';
+  if (allowOrigin && origin && origin !== allowOrigin) {
+    return { statusCode: 403, body: 'Forbidden origin' };
+  }
+
+  let payload;
+  try { payload = JSON.parse(event.body || '{}'); } catch { return { statusCode: 400, body: 'Invalid JSON' }; }
+  const { to, subject, html, text, replyTo, token } = payload;
+  if (!Array.isArray(to) || !to.length) return { statusCode: 400, body: 'Missing recipients' };
+  if (!subject || !html) return { statusCode: 400, body: 'Missing subject or html' };
+
+  const requiredToken = process.env.SEND_TOKEN;
+  if (requiredToken && token !== requiredToken) return { statusCode: 401, body: 'Unauthorized' };
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587', 10),
+      secure: (process.env.SMTP_SECURE || 'false') === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+
+    const info = await transporter.sendMail({
+      from: process.env.FROM_EMAIL,
+      to: to.join(','),
+      subject,
+      html,
+      text: text || undefined,
+      replyTo: replyTo || undefined
+    });
+
+    return {
+      statusCode: 200,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ok: true, messageId: info.messageId })
+    };
+  } catch (err) {
+    console.error('Mailer error:', err);
+    return { statusCode: 500, body: 'Failed to send email' };
+  }
+};
+`;
+      $('#netlifyCode').textContent = code;
+    }
+
+    // Boot
+    document.addEventListener('DOMContentLoaded', initForm);
+  </script>
+</body>
+</html>
