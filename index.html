@@ -62,6 +62,21 @@
     .right { text-align: right; }
     .soft { color: var(--muted); }
     .nowrap { white-space: nowrap; }
+
+    /* Storage meter */
+    .storage-meter {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      background: #111827;
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+      opacity: 0.92;
+      z-index: 1000;
+    }
   </style>
 </head>
 <body>
@@ -241,6 +256,9 @@
     </section>
   </div>
 
+  <!-- Bottom-right storage meter -->
+  <div id="storageNotice" class="storage-meter" role="status" aria-live="polite">Storage: calculating…</div>
+
   <script>
     // Helpers
     const $ = (sel, root=document) => root.querySelector(sel);
@@ -266,6 +284,34 @@
     const escapeHtml = (s='') => String(s)
       .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
       .replaceAll('"','&quot;').replaceAll("'","&#39;");
+
+    // Storage meter utilities (conservative ~5MB quota)
+    const QUOTA_BYTES = 5 * 1024 * 1024;
+    function getStorageBytes() {
+      let total = 0;
+      const te = new TextEncoder();
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        const v = localStorage.getItem(k);
+        if (k) total += te.encode(k).length;
+        if (v) total += te.encode(v).length;
+      }
+      return total;
+    }
+    function formatMB(bytes) { return (bytes / (1024 * 1024)).toFixed(2); }
+    let storageWarned = false;
+    function updateStorageNotice() {
+      const used = getStorageBytes();
+      const pct = Math.min(100, Math.round((used / QUOTA_BYTES) * 100));
+      const el = document.getElementById('storageNotice');
+      if (el) el.textContent = `Storage: ${formatMB(used)} MB of ~5 MB used (${pct}%)`;
+      if (pct >= 85 && !storageWarned) {
+        storageWarned = true;
+        if (confirm('Storage is almost full. Download all CSV now to back up your data?')) {
+          if (typeof downloadCsvAll === 'function') downloadCsvAll();
+        }
+      }
+    }
 
     // State
     const state = {
@@ -299,9 +345,10 @@
       $('#purgeBtn').addEventListener('click', purgeAll);
 
       draw();
+      updateStorageNotice();
     }
 
-    function persist() { store.set('intakeEntries', state.entries); }
+    function persist() { store.set('intakeEntries', state.entries); updateStorageNotice(); }
 
     function onSubmitIntake(e) {
       e.preventDefault();
