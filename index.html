@@ -39,7 +39,6 @@
     }
     .container { max-width: 1200px; margin: 20px auto; padding: 0 16px 48px; display: grid; grid-template-columns: 1fr; gap: 20px; }
     @media (min-width: 1080px) {
-      /* Keep a single column at larger widths to make all boxes full-width */
       .container { grid-template-columns: 1fr; }
     }
     section {
@@ -118,7 +117,15 @@
     /* Print summary only */
     @media print {
       body { background: #fff; }
-      header, #entryFormSection, #intakesSection .actions, #emailSection .actions, #emailSection #recipientsEditor, #emailSection .notice, #emailSection details, .footer { display: none !important; }
+      header,
+      #entryFormSection,
+      #intakesSection .actions,
+      #emailSection .actions,
+      #emailSection #recipientsEditor,
+      #emailSection .notice,
+      #emailSection details,
+      #previewSection details,
+      .footer { display: none !important; }
       #summaryPreview { display: block !important; }
       section { border: none; box-shadow: none; }
     }
@@ -311,7 +318,7 @@
       </div>
     </section>
 
-    <!-- Email Summary and Recipients -->
+    <!-- Email Summary and Recipients (settings/actions only) -->
     <section id="emailSection" aria-labelledby="emailTitle">
       <h2 id="emailTitle">End-of-Day Summary</h2>
 
@@ -358,15 +365,6 @@
             To enable actual email sending, deploy the backend email function below and host this page with HTTPS.
           </div>
         </div>
-
-        <div>
-          <label>Preview</label>
-          <div id="summaryPreview" class="codeblock" aria-live="polite" aria-busy="false"></div>
-          <details class="mt-12">
-            <summary>Plain text</summary>
-            <pre id="summaryTextPreview" class="codeblock" style="white-space: pre-wrap;"></pre>
-          </details>
-        </div>
       </div>
 
       <div class="mt-16">
@@ -395,6 +393,16 @@
           </div>
         </details>
       </div>
+    </section>
+
+    <!-- Summary Preview (separate box below EOD settings) -->
+    <section id="previewSection" aria-labelledby="previewTitle">
+      <h2 id="previewTitle">Daily Intake Summary</h2>
+      <div id="summaryPreview" class="codeblock" aria-live="polite" aria-busy="false"></div>
+      <details class="mt-12">
+        <summary>Plain text</summary>
+        <pre id="summaryTextPreview" class="codeblock" style="white-space: pre-wrap;"></pre>
+      </details>
     </section>
   </div>
 
