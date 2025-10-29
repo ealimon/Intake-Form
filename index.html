@@ -18,7 +18,7 @@
     * { box-sizing: border-box; }
     body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); }
     header {
-      /* Changed to orange gradient */
+      /* Orange gradient header */
       background: linear-gradient(135deg, #f97316, #fb923c);
       color: white; padding: 24px 16px;
     }
@@ -27,7 +27,7 @@
     header .brand { font-size: 14px; font-weight: 600; opacity: 0.95; }
     header .brand a { color: #fff; text-decoration: none; border-bottom: 1px dotted rgba(255,255,255,0.6); }
     header .brand a:hover { text-decoration: underline; }
-    /* Make header subtext white for visibility */
+    /* Header subtext white for visibility */
     header .muted { color: #fff; opacity: 0.95; }
     .container { max-width: 1200px; margin: 20px auto; padding: 0 16px 48px; display: grid; grid-template-columns: 1fr; gap: 20px; }
 
@@ -50,6 +50,8 @@
     }
     button.primary { background: var(--accent); color: #fff; border-color: transparent; }
     button.danger { background: var(--danger); color: #fff; border-color: transparent; }
+    /* New green button style */
+    button.success { background: #16a34a; color: #fff; border-color: transparent; }
     .muted { color: var(--muted); font-size: 12px; }
     .table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
     table { border-collapse: collapse; width: 100%; min-width: 900px; }
@@ -238,8 +240,8 @@
       <div class="totals" id="totalsBar"></div>
 
       <div class="actions">
-        <button id="downloadCsvFilteredBtn">Download CSV (Selected Date)</button>
-        <button id="downloadCsvAllBtn">Download CSV (All)</button>
+        <button id="downloadCsvFilteredBtn" class="success">Download CSV (Selected Date)</button>
+        <button id="downloadCsvAllBtn" class="success">Download CSV (All)</button>
         <button id="purgeBtn" class="danger" title="Remove all entries from this browser">Purge All</button>
       </div>
 
