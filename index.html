@@ -10,25 +10,39 @@
       --panel: #ffffff;
       --text: #1f2937;
       --muted: #6b7280;
-      --accent: #1f6feb; /* buttons remain blue as before */
+      --accent: #1f6feb; /* primary action buttons */
       --danger: #dc2626;
       --border: #e5e7eb;
       --radius: 10px;
+      --orange-start: #f97316;
+      --orange-end: #fb923c;
+      --badge-bg: rgba(255,255,255,0.15);
     }
     * { box-sizing: border-box; }
     body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); }
     header {
-      /* Orange gradient header */
-      background: linear-gradient(135deg, #f97316, #fb923c);
+      background: linear-gradient(135deg, var(--orange-start), var(--orange-end));
       color: white; padding: 24px 16px;
     }
-    header .inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-    header h1 { margin: 0; font-size: 22px; display: flex; align-items: baseline; gap: 8px; }
-    header .brand { font-size: 14px; font-weight: 600; opacity: 0.95; }
-    header .brand a { color: #fff; text-decoration: none; border-bottom: 1px dotted rgba(255,255,255,0.6); }
-    header .brand a:hover { text-decoration: underline; }
+    header .inner {
+      max-width: 1200px; margin: 0 auto;
+      display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center;
+    }
+    header h1 {
+      margin: 0; font-size: 22px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    }
+    .version-tag {
+      font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--badge-bg); color: #fff;
+      border: 1px solid rgba(255,255,255,0.25);
+    }
+    .local-badge {
+      display: inline-block; margin-top: 6px;
+      font-size: 12px; font-weight: 600; padding: 4px 8px; border-radius: 999px; background: var(--badge-bg); color: #fff;
+      border: 1px solid rgba(255,255,255,0.25);
+    }
     /* Header subtext white for visibility */
-    header .muted { color: #fff; opacity: 0.95; }
+    header .muted { color: #fff; opacity: 0.95; font-size: 14px; }
+
     .container { max-width: 1200px; margin: 20px auto; padding: 0 16px 48px; display: grid; grid-template-columns: 1fr; gap: 20px; }
 
     section { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
@@ -50,8 +64,7 @@
     }
     button.primary { background: var(--accent); color: #fff; border-color: transparent; }
     button.danger { background: var(--danger); color: #fff; border-color: transparent; }
-    /* New green button style */
-    button.success { background: #16a34a; color: #fff; border-color: transparent; }
+    button.success { background: #16a34a; color: #fff; border-color: transparent; } /* green */
     .muted { color: var(--muted); font-size: 12px; }
     .table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
     table { border-collapse: collapse; width: 100%; min-width: 900px; }
@@ -74,6 +87,11 @@
     .soft { color: var(--muted); }
     .nowrap { white-space: nowrap; }
 
+    /* Footer disclaimer */
+    .footer {
+      max-width: 1200px; margin: 0 auto; padding: 12px 16px 40px; color: var(--muted); font-size: 12px;
+    }
+
     /* Storage meter */
     .storage-meter {
       position: fixed;
@@ -88,15 +106,22 @@
       opacity: 0.92;
       z-index: 1000;
     }
+
+    @media print {
+      .storage-meter { display: none !important; }
+    }
   </style>
 </head>
 <body>
   <header>
     <div class="inner">
-      <h1>
-        Daily Intake Tracker
-        <span class="brand">By <a href="https://www.findlaw.com/" target="_blank" rel="noopener noreferrer">FindLaw</a></span>
-      </h1>
+      <div>
+        <h1>
+          Daily Intake Tracker
+          <span class="version-tag">v0.3</span>
+        </h1>
+        <div class="local-badge">Local-only: data stays in this browser</div>
+      </div>
       <div class="muted">Simple, local-only. Download CSV at day’s end.</div>
     </div>
   </header>
@@ -242,6 +267,7 @@
       <div class="actions">
         <button id="downloadCsvFilteredBtn" class="success">Download CSV (Selected Date)</button>
         <button id="downloadCsvAllBtn" class="success">Download CSV (All)</button>
+        <button id="archivePurgeBtn" title="Save entries older than 30 days to CSV and remove them from this browser">Archive >30 days & Purge</button>
         <button id="purgeBtn" class="danger" title="Remove all entries from this browser">Purge All</button>
       </div>
 
@@ -273,6 +299,10 @@
   <!-- Bottom-right storage meter -->
   <div id="storageNotice" class="storage-meter" role="status" aria-live="polite">Storage: calculating…</div>
 
+  <footer class="footer">
+    Prototype for evaluation — not a system of record. Local-only storage; export CSV regularly. Version v0.3
+  </footer>
+
   <script>
     // Helpers
     const $ = (sel, root=document) => root.querySelector(sel);
@@ -283,6 +313,12 @@
     };
     const todayStr = () => {
       const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+    const dateToIso = (d) => {
       const yyyy = d.getFullYear();
       const mm = String(d.getMonth()+1).padStart(2,'0');
       const dd = String(d.getDate()).padStart(2,'0');
@@ -356,6 +392,7 @@
 
       $('#downloadCsvFilteredBtn').addEventListener('click', downloadCsvFiltered);
       $('#downloadCsvAllBtn').addEventListener('click', downloadCsvAll);
+      $('#archivePurgeBtn').addEventListener('click', archiveAndPurgeOld);
       $('#purgeBtn').addEventListener('click', purgeAll);
 
       draw();
@@ -513,6 +550,22 @@
       const rows = list.map(e => cols.map(k => csvEscape(e[k] ?? '')).join(',')).join('\n');
       const blob = new Blob([header + rows], { type: 'text/csv' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+    }
+
+    function archiveAndPurgeOld() {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 30);
+      const cutoffStr = dateToIso(cutoff);
+      const older = state.entries.filter(e => e.date && e.date < cutoffStr);
+      if (!older.length) {
+        alert(`No entries older than 30 days (before ${cutoffStr}).`);
+        return;
+      }
+      if (!confirm(`Archive ${older.length} entries older than 30 days (before ${cutoffStr}) to CSV and remove them from this browser?`)) return;
+      downloadCsvFromEntries(older, `intakes-archive-before-${cutoffStr}.csv`);
+      state.entries = state.entries.filter(e => !(e.date && e.date < cutoffStr));
+      persist(); draw();
+      alert(`Archived and purged ${older.length} entries.`);
     }
 
     function purgeAll() {
